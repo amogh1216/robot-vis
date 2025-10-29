@@ -31,7 +31,7 @@ const StatusDisplay: React.FC<StatusDisplayProps> = ({ actualRobot, estimatedRob
 
   return (
     <div className="bg-white p-4 rounded-lg shadow-md">
-      <h3 className="text-lg font-semibold mb-3 text-gray-800">Robot Status</h3>
+      <h3 className="text-lg font-semibold mb-3 text-gray-800">Robot State</h3>
       
       {/* Grid Header */}
       <div className="grid grid-cols-3 gap-2 mb-2 pb-2 border-b border-gray-200">
@@ -71,19 +71,6 @@ const StatusDisplay: React.FC<StatusDisplayProps> = ({ actualRobot, estimatedRob
           actual={`${formatNumber(actualRobot.angularVelocity, 2)} rad/s`}
           estimated={`${formatNumber(estimatedRobot.angularVelocity, 2)} rad/s`}
         />
-      </div>
-
-      <div className="mt-4 pt-3 border-t border-gray-200">
-        <div className="flex items-center gap-4 text-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-blue-500 rounded"></div>
-            <span>Actual Robot</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-gray-400 border border-gray-400 rounded"></div>
-            <span>Estimated Robot</span>
-          </div>
-        </div>
       </div>
     </div>
   );

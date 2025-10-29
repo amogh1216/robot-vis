@@ -2,10 +2,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import RobotCanvas from './components/RobotCanvas';
 import ControlPanel from './components/ControlPanel';
 import StatusDisplay from './components/StatusDisplay';
+import BayesFilterSetup from './components/BayesFilterSetup';
+import BayesFilterSimulation from './components/BayesFilterSimulation';
 import { 
   RobotConstants, 
   MovementCommand, 
-  SimulationState 
+  SimulationState,
+  BayesFilterState,
+  SensorProbabilities,
+  BeliefState
 } from './types';
 import { 
   updateRobotPosition, 
@@ -13,6 +18,11 @@ import {
   constrainToBounds, 
   calculateTurningRadius 
 } from './robotUtils';
+import {
+  generateSensorReading,
+  updateBelief,
+  initializeBelief
+} from './bayesFilterUtils';
 
 const ANIMATION_INTERVAL = 16; // ~60 FPS
 const DELTA_TIME = ANIMATION_INTERVAL / 1000; // Convert to seconds
@@ -48,6 +58,19 @@ const App: React.FC = () => {
 
   const [currentCommand, setCurrentCommand] = useState<MovementCommand | null>(null);
   const [pressedKeys, setPressedKeys] = useState<Set<string>>(new Set());
+
+  // Bayes Filter State
+  const [bayesFilter, setBayesFilter] = useState<BayesFilterState>({
+    actualDoorState: { isOpen: true },
+    sensorProbabilities: { truePositive: 0.8, trueNegative: 0.8 },
+    currentBelief: initializeBelief(0.5),
+    sensorReadings: [],
+    currentTimeStep: 0,
+    isRunning: false
+  });
+  
+  // Separate initial belief that doesn't change during simulation
+  const [initialBeliefValue, setInitialBeliefValue] = useState<BeliefState>(initializeBelief(0.5));
 
   // Handle keyboard input
   useEffect(() => {
@@ -176,8 +199,84 @@ const App: React.FC = () => {
     simulation.robot.velocity
   );
 
+  // Bayes Filter Handlers
+  const handleActualDoorChange = useCallback((isOpen: boolean) => {
+    setBayesFilter(prev => ({
+      ...prev,
+      actualDoorState: { isOpen }
+    }));
+  }, []);
+
+  const handleSensorProbabilitiesChange = useCallback((probs: SensorProbabilities) => {
+    setBayesFilter(prev => ({
+      ...prev,
+      sensorProbabilities: probs
+    }));
+  }, []);
+
+  const handleInitialBeliefChange = useCallback((belief: BeliefState) => {
+    setInitialBeliefValue(belief);
+    // Also update current belief if simulation hasn't started
+    if (!bayesFilter.isRunning) {
+      setBayesFilter(prev => ({
+        ...prev,
+        currentBelief: belief
+      }));
+    }
+  }, [bayesFilter.isRunning]);
+
+  const handleStartBayesFilter = useCallback(() => {
+    setBayesFilter(prev => ({
+      ...prev,
+      isRunning: true,
+      currentTimeStep: 0,
+      sensorReadings: [],
+      currentBelief: initialBeliefValue // Start with the initial belief
+    }));
+  }, [initialBeliefValue]);
+
+  const handleNextTimeStep = useCallback(() => {
+    setBayesFilter(prev => {
+      // Generate new sensor reading
+      const newReading = generateSensorReading(
+        prev.actualDoorState.isOpen,
+        prev.sensorProbabilities
+      );
+
+      // Update belief using Bayes' theorem
+      const newBelief = updateBelief(
+        prev.currentBelief,
+        newReading,
+        prev.sensorProbabilities
+      );
+
+      // Add sensor reading to history
+      const newSensorReading = {
+        value: newReading,
+        timestamp: prev.currentTimeStep
+      };
+
+      return {
+        ...prev,
+        currentBelief: newBelief,
+        sensorReadings: [...prev.sensorReadings, newSensorReading],
+        currentTimeStep: prev.currentTimeStep + 1
+      };
+    });
+  }, []);
+
+  const handleResetBayesFilter = useCallback(() => {
+    setBayesFilter(prev => ({
+      ...prev,
+      isRunning: false,
+      currentTimeStep: 0,
+      sensorReadings: [],
+      currentBelief: initialBeliefValue // Reset to initial belief
+    }));
+  }, [initialBeliefValue]);
+
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gray-50 p-4">`
       <div className="max-w-7xl mx-auto">
         <header className="text-center mb-6">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">
@@ -223,10 +322,51 @@ const App: React.FC = () => {
           </div>
         </div>
 
+        {/* Bayes Filter Section */}
+        <div className="py-3">
+          <header className="text-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+              Part 2: Recursive State Estimation - Bayes Filter
+            </h2>
+            <p className="text-gray-600">
+              Demonstrate belief updates using Bayes' theorem with a door sensor example
+            </p>
+          </header>
+
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+            {/* Setup Panel - Narrower */}
+            <div className="xl:col-span-1">
+              <BayesFilterSetup
+                actualDoorOpen={bayesFilter.actualDoorState.isOpen}
+                onActualDoorChange={handleActualDoorChange}
+                sensorProbabilities={bayesFilter.sensorProbabilities}
+                onSensorProbabilitiesChange={handleSensorProbabilitiesChange}
+                initialBelief={initialBeliefValue}
+                onInitialBeliefChange={handleInitialBeliefChange}
+                onStartSimulation={handleStartBayesFilter}
+                isSimulationRunning={bayesFilter.isRunning}
+                onReset={handleResetBayesFilter}
+              />
+            </div>
+
+            {/* Simulation Display - Wider */}
+            <div className="xl:col-span-3">
+              {bayesFilter.isRunning && (
+                <BayesFilterSimulation
+                  filterState={bayesFilter}
+                  onNextTimeStep={handleNextTimeStep}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+
         <footer className="mt-8 text-center text-gray-500 text-sm">
           <p>
-            Use the control panel to adjust robot parameters and movement commands.
-            The simulation demonstrates differential drive robot kinematics in real-time.
+            Robot simulation: Use keyboard controls to move the differential drive robot.
+          </p>
+          <p>
+            Bayes filter: Configure parameters and step through to see belief updates in real-time.
           </p>
         </footer>
       </div>

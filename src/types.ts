@@ -37,3 +37,32 @@ export interface SimulationState {
   grid: GridConfig;
   isRunning: boolean;
 }
+
+// Bayes Filter Simulation Types
+export interface DoorState {
+  isOpen: boolean;
+}
+
+export interface SensorProbabilities {
+  truePositive: number; // P(sensor=true|door=open)
+  trueNegative: number; // P(sensor=false|door=closed)
+}
+
+export interface BeliefState {
+  doorOpen: number; // P(door=open)
+  doorClosed: number; // P(door=closed)
+}
+
+export interface SensorReading {
+  value: boolean; // true = sensor detects open, false = sensor detects closed
+  timestamp: number;
+}
+
+export interface BayesFilterState {
+  actualDoorState: DoorState;
+  sensorProbabilities: SensorProbabilities;
+  currentBelief: BeliefState;
+  sensorReadings: SensorReading[];
+  currentTimeStep: number;
+  isRunning: boolean;
+}

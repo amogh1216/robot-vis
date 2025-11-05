@@ -16,7 +16,8 @@ import {
   updateRobotPosition, 
   applyMovementCommand, 
   constrainToBounds, 
-  calculateTurningRadius 
+  calculateTurningRadius,
+  updateOdometryEstimate
 } from './robotUtils';
 import {
   generateSensorReading,
@@ -34,19 +35,25 @@ const App: React.FC = () => {
       position: { x: 200, y: 200 },
       orientation: 0,
       velocity: 0,
-      angularVelocity: 0
+      angularVelocity: 0,
+      leftWheel: { velocity: 0, rotation: 0 },
+      rightWheel: { velocity: 0, rotation: 0 }
     },
     estimatedRobot: {
       position: { x: 200, y: 200 },
       orientation: 0,
       velocity: 0,
-      angularVelocity: 0
+      angularVelocity: 0,
+      leftWheel: { velocity: 0, rotation: 0 },
+      rightWheel: { velocity: 0, rotation: 0 }
     },
     constants: {
       maxSpeed: 50,
       maxAcceleration: 100,
       wheelbase: 30,
-      size: 30
+      wheelRadius: 5, // 5 pixels radius for wheels
+      size: 30,
+      slippageAmount: 0.1 // 10% slippage factor
     },
     grid: {
       width: 800,
@@ -158,8 +165,13 @@ const App: React.FC = () => {
           prev.grid.height
         );
 
-        // For now, estimated robot is the same as actual (we'll add noise/estimation later)
-        const newEstimatedState = { ...newRobotState };
+        // Update odometry estimate based on wheel encoder readings
+        const newEstimatedState = updateOdometryEstimate(
+          prev.estimatedRobot,
+          newRobotState,
+          prev.constants,
+          DELTA_TIME
+        );
 
         return {
           ...prev,

@@ -34,9 +34,10 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       convertedValue = mpsToPixelVelocity(value);
     } else if (field === 'maxAcceleration') {
       convertedValue = mps2ToPixelAcceleration(value);
-    } else if (field === 'wheelbase' || field === 'size') {
+    } else if (field === 'wheelbase' || field === 'size' || field === 'wheelRadius') {
       convertedValue = metersToPixels(value);
     }
+    // slippageAmount doesn't need conversion - it's already a ratio (0-1)
     
     onConstantsChange({
       ...constants,
@@ -130,6 +131,38 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                 className="flex-1"
               />
               <span className="text-sm font-medium w-12">{pixelsToMeters(constants.wheelbase).toFixed(2)}m</span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <label className={labelStyle}>Wheel Radius:</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                value={pixelsToMeters(constants.wheelRadius)}
+                onChange={(e) => handleConstantChange('wheelRadius', parseFloat(e.target.value))}
+                min="0.01"
+                max="0.1"
+                step="0.005"
+                className="flex-1"
+              />
+              <span className="text-sm font-medium w-12">{pixelsToMeters(constants.wheelRadius).toFixed(3)}m</span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <label className={labelStyle}>Slippage:</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                value={constants.slippageAmount}
+                onChange={(e) => handleConstantChange('slippageAmount', parseFloat(e.target.value))}
+                min="0"
+                max="1"
+                step="0.05"
+                className="flex-1"
+              />
+              <span className="text-sm font-medium w-12">{(constants.slippageAmount * 100).toFixed(0)}%</span>
             </div>
           </div>
 

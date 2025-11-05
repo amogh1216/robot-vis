@@ -71,6 +71,30 @@ const StatusDisplay: React.FC<StatusDisplayProps> = ({ actualRobot, estimatedRob
           actual={`${formatNumber(actualRobot.angularVelocity, 2)} rad/s`}
           estimated={`${formatNumber(estimatedRobot.angularVelocity, 2)} rad/s`}
         />
+        
+        <StatusRow
+          label="Left Wheel Vel"
+          actual={`${formatNumber(actualRobot.leftWheel.velocity, 2)} rad/s`}
+          estimated={`${formatNumber(estimatedRobot.leftWheel.velocity, 2)} rad/s`}
+        />
+        
+        <StatusRow
+          label="Right Wheel Vel"
+          actual={`${formatNumber(actualRobot.rightWheel.velocity, 2)} rad/s`}
+          estimated={`${formatNumber(estimatedRobot.rightWheel.velocity, 2)} rad/s`}
+        />
+        
+        <StatusRow
+          label="Left Wheel Rot"
+          actual={`${formatNumber(actualRobot.leftWheel.rotation, 1)} rad`}
+          estimated={`${formatNumber(estimatedRobot.leftWheel.rotation, 1)} rad`}
+        />
+        
+        <StatusRow
+          label="Right Wheel Rot"
+          actual={`${formatNumber(actualRobot.rightWheel.rotation, 1)} rad`}
+          estimated={`${formatNumber(estimatedRobot.rightWheel.rotation, 1)} rad`}
+        />
       </div>
     </div>
   );

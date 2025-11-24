@@ -56,7 +56,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       {/* Simulation Control */}
       <div className="mb-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-700">Simulation</h3>
           <button
             onClick={onToggleSimulation}
             className="transition-colors"
@@ -77,14 +76,13 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         </div>
         {isRunning && (
           <div className="mt-2 text-xs text-gray-500">
-            Use ↑↓←→ or WASD to move, Space to stop
+            Use WASD to move, Space to stop
           </div>
         )}
       </div>
 
       {/* Robot Constants */}
       <div className="mb-6">
-        <h3 className="text-lg font-semibold mb-3 text-gray-700">Robot Constants</h3>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <label className={labelStyle}>Max Speed:</label>
@@ -151,15 +149,15 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           </div>
 
           <div className="flex items-center justify-between">
-            <label className={labelStyle}>Slippage:</label>
+            <label className={labelStyle}>Slippage (will lead to drift):</label>
             <div className="flex items-center gap-2">
               <input
                 type="range"
                 value={constants.slippageAmount}
                 onChange={(e) => handleConstantChange('slippageAmount', parseFloat(e.target.value))}
                 min="0"
-                max="1"
-                step="0.05"
+                max="0.5"
+                step="0.025"
                 className="flex-1"
               />
               <span className="text-sm font-medium w-12">{(constants.slippageAmount * 100).toFixed(0)}%</span>

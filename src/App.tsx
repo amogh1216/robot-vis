@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import RobotCanvas from './components/RobotCanvas';
 import ControlPanel from './components/ControlPanel';
 import StatusDisplay from './components/StatusDisplay';
+
 import { 
   RobotConstants, 
   MovementCommand, 
@@ -47,14 +48,13 @@ const App: React.FC = () => {
     },
     grid: {
       width: 800,
-      height: 600,
+      height: 650,
       cellSize: 40
     },
     isRunning: false
   });
 
   const [currentCommand, setCurrentCommand] = useState<MovementCommand | null>(null);
-  const [pressedKeys, setPressedKeys] = useState<Set<string>>(new Set());
 
   // Handle keyboard input
   useEffect(() => {
@@ -62,7 +62,6 @@ const App: React.FC = () => {
       if (!simulation.isRunning) return;
       
       const key = event.key.toLowerCase();
-      setPressedKeys(prev => new Set(prev).add(key));
       
       // Determine movement command based on pressed keys
       if (key === 'arrowup' || key === 'w') {
@@ -81,11 +80,6 @@ const App: React.FC = () => {
 
     const handleKeyUp = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
-      setPressedKeys(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(key);
-        return newSet;
-      });
       
       // Stop movement when key is released
       if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(key)) {
@@ -193,10 +187,9 @@ const App: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         <header className="text-center mb-6">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">
-            Robot Visualization & Simulation
+            Differential Drive Robot Simulation Engine
           </h1>
           <p className="text-gray-600">
-            Educational tool for understanding differential drive robot kinematics and control
           </p>
         </header>
 
@@ -204,13 +197,17 @@ const App: React.FC = () => {
           {/* Canvas - takes up 2/3 of the space */}
           <div className="xl:col-span-2">
             <div className="bg-white p-4 rounded-lg shadow-md">
-              <div className="flex justify-center">
+              <div
+                className="relative mx-auto"
+                style={{ width: simulation.grid.width, height: simulation.grid.height }}
+              >
                 <RobotCanvas
                   robot={simulation.robot}
                   estimatedRobot={simulation.estimatedRobot}
                   grid={simulation.grid}
                   robotSize={simulation.constants.size}
-                  className="border border-gray-300 rounded"
+                  className="border border-gray-300 rounded block"
+                  showLegend={true}
                 />
               </div>
             </div>
@@ -236,7 +233,6 @@ const App: React.FC = () => {
 
         <footer className="mt-8 text-center text-gray-500 text-sm">
           <p>
-            Robot simulation: Use keyboard controls to move the differential drive robot.
           </p>
         </footer>
       </div>

@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { RobotState, GridConfig } from '../types';
+import CanvasLegend from './CanvasLegend';
 
 interface RobotCanvasProps {
   robot: RobotState;
@@ -7,6 +8,7 @@ interface RobotCanvasProps {
   grid: GridConfig;
   robotSize: number;
   className?: string;
+  showLegend?: boolean;
 }
 
 const RobotCanvas: React.FC<RobotCanvasProps> = ({
@@ -14,7 +16,8 @@ const RobotCanvas: React.FC<RobotCanvasProps> = ({
   estimatedRobot,
   grid,
   robotSize,
-  className
+  className,
+  showLegend = false
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -110,16 +113,29 @@ const RobotCanvas: React.FC<RobotCanvasProps> = ({
   };
 
   return (
-    <canvas
-      ref={canvasRef}
-      width={grid.width}
-      height={grid.height}
-      className={className}
-      style={{
-        border: '1px solid #d1d5db',
-        backgroundColor: '#ffffff'
-      }}
-    />
+    <div style={{ display: 'grid' }}>
+      {/* Layer 1: Canvas */}
+      <div style={{ gridColumn: 1, gridRow: 1 }}>
+        <canvas
+          ref={canvasRef}
+          width={grid.width}
+          height={grid.height}
+          className={className}
+          style={{
+            border: '1px solid #d1d5db',
+            backgroundColor: '#ffffff',
+            display: 'block'
+          }}
+        />
+      </div>
+      {/* Layer 2: Legend overlay */}
+      {showLegend && (
+        <CanvasLegend
+          actualRobot={robot}
+          estimatedRobot={estimatedRobot}
+        />
+      )}
+    </div>
   );
 };
 

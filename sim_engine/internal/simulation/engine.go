@@ -1,8 +1,10 @@
 package simulation
 
 import (
+	"log"
 	"math"
 	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/amogh1216/robot-vis/sim_engine/internal/models"
@@ -90,6 +92,12 @@ func (e *Engine) Reset() {
 
 // Step advances the simulation by one time step
 func (e *Engine) Step(dt float64) {
+	startTime := time.Now()
+	defer func() {
+		elapsed := time.Since(startTime)
+		log.Printf("Engine.Step() took %v", elapsed)
+	}()
+
 	if dt <= 0 {
 		return
 	}
@@ -98,13 +106,35 @@ func (e *Engine) Step(dt float64) {
 	e.updateWheelVelocities(dt)
 
 	// Calculate robot velocities from wheel velocities
-	// Linear velocity: v = (wheelRadius/2) * (leftWheelVel + rightWheelVel)
-	// Angular velocity: ω = (wheelRadius/wheelBase) * (rightWheelVel - leftWheelVel)
 	linearVel, angularVel := e.wheelVelocitiesToRobotVelocities(
 		e.GroundTruth.LeftWheel.Velocity,
 		e.GroundTruth.RightWheel.Velocity,
 	)
 
+	// Run ground truth and odometry updates concurrently
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// Ground truth update (with slippage)
+	go func() {
+		defer wg.Done()
+		e.updateGroundTruth(linearVel, angularVel, dt)
+	}()
+
+	// Odometry update (no slippage)
+	go func() {
+		defer wg.Done()
+		e.updateOdometry(dt)
+	}()
+
+	wg.Wait()
+
+	e.GroundTruth.Timestamp = time.Now()
+	e.LastUpdate = e.GroundTruth.Timestamp
+}
+
+// updateGroundTruth updates the ground truth state with slippage
+func (e *Engine) updateGroundTruth(linearVel, angularVel, dt float64) {
 	// Apply slippage to velocities (ground truth only)
 	slippedLinearVel, slippedAngularVel := e.applySlippage(linearVel, angularVel, dt)
 
@@ -116,12 +146,6 @@ func (e *Engine) Step(dt float64) {
 	// Update wheel rotations based on actual wheel velocities
 	e.GroundTruth.LeftWheel.Rotation += e.GroundTruth.LeftWheel.Velocity * dt
 	e.GroundTruth.RightWheel.Rotation += e.GroundTruth.RightWheel.Velocity * dt
-
-	// Update odometry estimate (no slippage - based on commanded/ideal wheel velocities)
-	e.updateOdometry(dt)
-
-	e.GroundTruth.Timestamp = time.Now()
-	e.LastUpdate = e.GroundTruth.Timestamp
 }
 
 // updateWheelVelocities smoothly updates wheel velocities toward target

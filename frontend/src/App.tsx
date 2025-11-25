@@ -2,88 +2,92 @@ import React, { useState, useEffect, useCallback } from 'react';
 import RobotCanvas from './components/RobotCanvas';
 import ControlPanel from './components/ControlPanel';
 import StatusDisplay from './components/StatusDisplay';
+import { useSimulationWebSocket } from './hooks/useSimulationWebSocket';
 
 import { 
   RobotConstants, 
   MovementCommand, 
-  SimulationState
+  RobotState,
+  GridConfig
 } from './types';
 import { 
-  updateRobotPosition, 
-  applyMovementCommand, 
-  constrainToBounds, 
-  calculateTurningRadius,
-  updateOdometryEstimate
+  calculateTurningRadius
 } from './robotUtils';
 
-const ANIMATION_INTERVAL = 16; // ~60 FPS
-const DELTA_TIME = ANIMATION_INTERVAL / 1000; // Convert to seconds
-
 const App: React.FC = () => {
-  // Initial simulation state
-  const [simulation, setSimulation] = useState<SimulationState>({
-    robot: {
-      position: { x: 200, y: 200 },
-      orientation: 0,
-      velocity: 0,
-      angularVelocity: 0,
-      leftWheel: { velocity: 0, rotation: 0 },
-      rightWheel: { velocity: 0, rotation: 0 }
-    },
-    estimatedRobot: {
-      position: { x: 200, y: 200 },
-      orientation: 0,
-      velocity: 0,
-      angularVelocity: 0,
-      leftWheel: { velocity: 0, rotation: 0 },
-      rightWheel: { velocity: 0, rotation: 0 }
-    },
-    constants: {
-      maxSpeed: 50,
-      maxAcceleration: 100,
-      wheelbase: 30,
-      wheelRadius: 5, // 5 pixels radius for wheels
-      size: 30,
-      slippageAmount: 0.1 // 10% slippage factor
-    },
-    grid: {
-      width: 800,
-      height: 650,
-      cellSize: 40
-    },
-    isRunning: false
+  // WebSocket connection to backend
+  const {
+    isConnected,
+    isRunning,
+    groundTruth,
+    odometry,
+    error,
+    sendWheelCommand,
+    sendConstants,
+    startSimulation,
+    stopSimulation,
+    resetSimulation,
+  } = useSimulationWebSocket();
+
+  // Grid configuration
+  const [grid] = useState<GridConfig>({
+    width: 800,
+    height: 650,
+    cellSize: 40
   });
 
-  const [currentCommand, setCurrentCommand] = useState<MovementCommand | null>(null);
+  // Robot constants (frontend units - pixels)
+  const [constants, setConstants] = useState<RobotConstants>({
+    maxSpeed: 200, // pixels/s (2 m/s * 100)
+    maxAcceleration: 100, // pixels/s² (1 m/s² * 100)
+    wheelbase: 30, // pixels (0.3m * 100)
+    wheelRadius: 5, // pixels (0.05m * 100)
+    size: 30,
+    slippageAmount: 0.1
+  });
 
-  // Handle keyboard input
+  // Default robot state for when not connected
+  const defaultRobotState: RobotState = {
+    position: { x: 400, y: 325 },
+    orientation: 0,
+    velocity: 0,
+    angularVelocity: 0,
+    leftWheel: { velocity: 0, rotation: 0 },
+    rightWheel: { velocity: 0, rotation: 0 }
+  };
+
+  // Handle keyboard input for wheel control
   useEffect(() => {
+    if (!isRunning) return;
+
+    const wheelSpeed = 10; // rad/s for keyboard control
+
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (!simulation.isRunning) return;
-      
       const key = event.key.toLowerCase();
       
-      // Determine movement command based on pressed keys
       if (key === 'arrowup' || key === 'w') {
-        setCurrentCommand({ type: 'forward' });
+        // Forward: both wheels same speed
+        sendWheelCommand(wheelSpeed, wheelSpeed);
       } else if (key === 'arrowdown' || key === 's') {
-        setCurrentCommand({ type: 'backward' });
+        // Backward: both wheels negative
+        sendWheelCommand(-wheelSpeed, -wheelSpeed);
       } else if (key === 'arrowleft' || key === 'a') {
-        setCurrentCommand({ type: 'turnLeft' });
+        // Turn left: right wheel faster
+        sendWheelCommand(-wheelSpeed * 0.5, wheelSpeed * 0.5);
       } else if (key === 'arrowright' || key === 'd') {
-        setCurrentCommand({ type: 'turnRight' });
+        // Turn right: left wheel faster
+        sendWheelCommand(wheelSpeed * 0.5, -wheelSpeed * 0.5);
       } else if (key === ' ') {
-        event.preventDefault(); // Prevent page scroll
-        setCurrentCommand({ type: 'stop' });
+        event.preventDefault();
+        sendWheelCommand(0, 0);
       }
     };
 
     const handleKeyUp = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
       
-      // Stop movement when key is released
       if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(key)) {
-        setCurrentCommand({ type: 'stop' });
+        sendWheelCommand(0, 0);
       }
     };
 
@@ -94,102 +98,89 @@ const App: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [simulation.isRunning]);
+  }, [isRunning, sendWheelCommand]);
 
   // Update robot size when wheelbase changes
   useEffect(() => {
-    setSimulation(prev => ({
+    setConstants(prev => ({
       ...prev,
-      constants: {
-        ...prev.constants,
-        size: prev.constants.wheelbase
-      }
+      size: prev.wheelbase
     }));
-  }, [simulation.constants.wheelbase]);
+  }, [constants.wheelbase]);
 
-  // Animation loop
+  // Send constants to backend when they change
   useEffect(() => {
-    if (!simulation.isRunning) return;
+    if (isConnected) {
+      sendConstants(constants);
+    }
+  }, [constants, isConnected, sendConstants]);
 
-    const intervalId = setInterval(() => {
-      setSimulation(prev => {
-        let newRobotState = { ...prev.robot };
-
-        // Apply current movement command if any
-        if (currentCommand) {
-          newRobotState = applyMovementCommand(
-            newRobotState,
-            prev.constants,
-            currentCommand,
-            DELTA_TIME
-          );
-        }
-
-        // Update position based on current velocity
-        newRobotState = updateRobotPosition(newRobotState, prev.constants, DELTA_TIME);
-
-        // Constrain to grid boundaries
-        newRobotState.position = constrainToBounds(
-          newRobotState.position,
-          prev.constants.size,
-          prev.grid.width,
-          prev.grid.height
-        );
-
-        // Update odometry estimate based on wheel encoder readings
-        const newEstimatedState = updateOdometryEstimate(
-          prev.estimatedRobot,
-          newRobotState,
-          prev.constants,
-          DELTA_TIME
-        );
-
-        return {
-          ...prev,
-          robot: newRobotState,
-          estimatedRobot: newEstimatedState
-        };
-      });
-    }, ANIMATION_INTERVAL);
-
-    return () => clearInterval(intervalId);
-  }, [simulation.isRunning, currentCommand]);
-
-  const handleConstantsChange = useCallback((constants: RobotConstants) => {
-    setSimulation(prev => ({
-      ...prev,
-      constants
-    }));
+  const handleConstantsChange = useCallback((newConstants: RobotConstants) => {
+    setConstants(newConstants);
   }, []);
 
   const handleMovementCommand = useCallback((command: MovementCommand) => {
-    setCurrentCommand(command);
-  }, []);
+    const wheelSpeed = 10; // rad/s
+    
+    switch (command.type) {
+      case 'forward':
+        sendWheelCommand(wheelSpeed, wheelSpeed);
+        break;
+      case 'backward':
+        sendWheelCommand(-wheelSpeed, -wheelSpeed);
+        break;
+      case 'turnLeft':
+        sendWheelCommand(-wheelSpeed * 0.5, wheelSpeed * 0.5);
+        break;
+      case 'turnRight':
+        sendWheelCommand(wheelSpeed * 0.5, -wheelSpeed * 0.5);
+        break;
+      case 'stop':
+        sendWheelCommand(0, 0);
+        break;
+      case 'wheelControl':
+        if (command.leftWheelVelocity !== undefined && command.rightWheelVelocity !== undefined) {
+          sendWheelCommand(command.leftWheelVelocity, command.rightWheelVelocity);
+        }
+        break;
+    }
+  }, [sendWheelCommand]);
 
   const handleToggleSimulation = useCallback(() => {
-    setSimulation(prev => ({
-      ...prev,
-      isRunning: !prev.isRunning
-    }));
-    // Stop current command when stopping simulation
-    if (simulation.isRunning) {
-      setCurrentCommand(null);
+    if (isRunning) {
+      stopSimulation();
+    } else {
+      startSimulation();
     }
-  }, [simulation.isRunning]);
+  }, [isRunning, startSimulation, stopSimulation]);
+
+  const handleReset = useCallback(() => {
+    resetSimulation();
+  }, [resetSimulation]);
+
+  // Use backend state or default
+  const robot = groundTruth || defaultRobotState;
+  const estimatedRobot = odometry || defaultRobotState;
 
   const turningRadius = calculateTurningRadius(
-    simulation.constants.wheelbase,
-    simulation.robot.velocity
+    constants.wheelbase,
+    robot.velocity
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">`
+    <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-7xl mx-auto">
         <header className="text-center mb-6">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">
             Differential Drive Robot Simulation Engine
           </h1>
           <p className="text-gray-600">
+            {isConnected ? (
+              <span className="text-green-600">● Connected to backend</span>
+            ) : (
+              <span className="text-red-600">● Disconnected - Start the Go backend on port 3001</span>
+            )}
+            {error && <span className="ml-2 text-red-500">({error})</span>}
           </p>
         </header>
 
@@ -199,13 +190,13 @@ const App: React.FC = () => {
             <div className="bg-white p-4 rounded-lg shadow-md">
               <div
                 className="relative mx-auto"
-                style={{ width: simulation.grid.width, height: simulation.grid.height }}
+                style={{ width: grid.width, height: grid.height }}
               >
                 <RobotCanvas
-                  robot={simulation.robot}
-                  estimatedRobot={simulation.estimatedRobot}
-                  grid={simulation.grid}
-                  robotSize={simulation.constants.size}
+                  robot={robot}
+                  estimatedRobot={estimatedRobot}
+                  grid={grid}
+                  robotSize={constants.size}
                   className="border border-gray-300 rounded block"
                   showLegend={true}
                 />
@@ -216,23 +207,32 @@ const App: React.FC = () => {
           {/* Control panel and status - always visible */}
           <div className="xl:col-span-1 space-y-4">
             <ControlPanel
-              constants={simulation.constants}
+              constants={constants}
               onConstantsChange={handleConstantsChange}
               onMovementCommand={handleMovementCommand}
-              isRunning={simulation.isRunning}
+              isRunning={isRunning}
               onToggleSimulation={handleToggleSimulation}
               turningRadius={turningRadius}
             />
 
             <StatusDisplay
-              actualRobot={simulation.robot}
-              estimatedRobot={simulation.estimatedRobot}
+              actualRobot={robot}
+              estimatedRobot={estimatedRobot}
             />
+
+            {/* Reset button */}
+            <button
+              onClick={handleReset}
+              className="w-full py-2 px-4 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+            >
+              Reset Simulation
+            </button>
           </div>
         </div>
 
         <footer className="mt-8 text-center text-gray-500 text-sm">
           <p>
+            Use arrow keys or WASD to control the robot. Press Space to stop.
           </p>
         </footer>
       </div>

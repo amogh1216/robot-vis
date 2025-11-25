@@ -82,12 +82,16 @@ func (h *Hub) Run() {
 
 // HandleMessage processes incoming WebSocket messages
 func (h *Hub) HandleMessage(client *Client, messageData []byte) {
+	log.Printf("Received raw message: %s", string(messageData))
+
 	var msg models.WSMessage
 	if err := json.Unmarshal(messageData, &msg); err != nil {
 		log.Printf("Error unmarshaling message: %v", err)
 		h.sendError(client, "INVALID_MESSAGE", "Failed to parse message")
 		return
 	}
+
+	log.Printf("Parsed message type: %s", msg.Type)
 
 	switch msg.Type {
 	case models.MsgTypeWheelCommand:
@@ -211,7 +215,7 @@ func (h *Hub) handleResetSimulation() {
 
 // simulationLoop runs the simulation at fixed time steps
 func (h *Hub) simulationLoop() {
-	const targetFPS = 60
+	const targetFPS = 120
 	const dt = 1.0 / float64(targetFPS)
 	ticker := time.NewTicker(time.Duration(1000/targetFPS) * time.Millisecond)
 	defer ticker.Stop()
@@ -257,6 +261,8 @@ func (h *Hub) broadcastSimulationStatus() {
 	running := h.running
 	sessionID := h.sessionID
 	h.mu.RUnlock()
+
+	log.Printf("Broadcasting simulation status: running=%v, sessionID=%s", running, sessionID)
 
 	h.broadcastMessage(models.WSMessage{
 		Type: models.MsgTypeSimulationStatus,

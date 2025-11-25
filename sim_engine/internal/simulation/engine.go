@@ -160,36 +160,35 @@ func (e *Engine) updateWheelVelocities(dt float64) {
 func (e *Engine) wheelVelocitiesToRobotVelocities(leftWheelVel, rightWheelVel float64) (linearVel, angularVel float64) {
 	// Differential drive kinematics:
 	// v = R/2 * (ωL + ωR)
-	// ω = R/L * (ωR - ωL)
+	// ω = R/L * (ωL - ωR)
 	// where R = wheel radius, L = wheelbase, ωL/ωR = left/right wheel angular velocities
 	linearVel = (e.Constants.WheelRadius / 2.0) * (leftWheelVel + rightWheelVel)
-	angularVel = (e.Constants.WheelRadius / e.Constants.WheelBase) * (rightWheelVel - leftWheelVel)
+	angularVel = (e.Constants.WheelRadius / e.Constants.WheelBase) * (leftWheelVel - rightWheelVel)
+
+	// clip to [-maxSpeed, maxSpeed]
+	if linearVel > e.Constants.MaxSpeed {
+		linearVel = e.Constants.MaxSpeed
+	} else if linearVel < -e.Constants.MaxSpeed {
+		linearVel = -e.Constants.MaxSpeed
+	}
+
+	if angularVel > e.Constants.MaxSpeed {
+		angularVel = e.Constants.MaxSpeed
+	} else if angularVel < -e.Constants.MaxSpeed {
+		angularVel = -e.Constants.MaxSpeed
+	}
+
 	return
 }
 
 // applySlippage adds noise to velocities proportional to speed and acceleration
 func (e *Engine) applySlippage(linearVel, angularVel, dt float64) (slippedLinear, slippedAngular float64) {
-	if e.Constants.SlippageAmount == 0 {
-		return linearVel, angularVel
-	}
 
-	// Calculate acceleration magnitude
-	prevLinearVel := e.GroundTruth.LinearVel
-	accelMagnitude := math.Abs(linearVel-prevLinearVel) / dt
+	linearNoise := (e.rand.NormFloat64() - 0.5) * 0.1
+	angularNoise := (e.rand.NormFloat64() - 0.5) * 0.05
 
-	// Slippage factor increases with speed and acceleration
-	speedFactor := math.Abs(linearVel) / e.Constants.MaxSpeed
-	accelFactor := accelMagnitude / e.Constants.MaxAccel
-
-	// Combined noise factor
-	noiseFactor := e.Constants.SlippageAmount * (0.5*speedFactor + 0.5*accelFactor)
-
-	// Apply Gaussian noise to velocities
-	linearNoise := e.rand.NormFloat64() * noiseFactor * 0.1
-	angularNoise := e.rand.NormFloat64() * noiseFactor * 0.1
-
-	slippedLinear = linearVel * (1 + linearNoise)
-	slippedAngular = angularVel * (1 + angularNoise)
+	slippedLinear = linearVel * (1 - (e.Constants.SlippageAmount+linearNoise)*0.3)
+	slippedAngular = angularVel * (1 - (e.Constants.SlippageAmount+angularNoise)*0.03)
 	return
 }
 

@@ -1,0 +1,82 @@
+# Robot Visualization - Docker Compose
+# Use: docker compose up (production) or docker compose --profile dev up (development)
+
+services:
+  # Frontend - React Application (Production)
+  frontend:
+    build:
+      context: ./frontend
+      target: production
+    container_name: robot-vis-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - sim_engine
+    networks:
+      - robot-network
+    restart: unless-stopped
+    profiles:
+      - prod
+
+  # Frontend Development
+  frontend-dev:
+    build:
+      context: ./frontend
+      target: development
+    container_name: robot-vis-frontend-dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+      - WDS_SOCKET_PORT=3000
+    depends_on:
+      - sim_engine-dev
+    networks:
+      - robot-network
+    profiles:
+      - dev
+
+  # Backend - Go Simulation Engine (Production)
+  sim_engine:
+    build:
+      context: ./sim_engine
+      target: production
+    container_name: robot-vis-sim-engine
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - ENV=production
+    networks:
+      - robot-network
+    restart: unless-stopped
+    profiles:
+      - prod
+
+  # Backend Development with hot reload
+  sim_engine-dev:
+    build:
+      context: ./sim_engine
+      target: development
+    container_name: robot-vis-sim-engine-dev
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./sim_engine/cmd:/app/cmd:ro
+      - ./sim_engine/internal:/app/internal:ro
+      - ./sim_engine/.air.toml:/app/.air.toml:ro
+    environment:
+      - PORT=3001
+      - ENV=development
+    networks:
+      - robot-network
+    profiles:
+      - dev
+
+networks:
+  robot-network:
+    driver: bridge

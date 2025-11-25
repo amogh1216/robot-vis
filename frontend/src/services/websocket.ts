@@ -80,6 +80,19 @@ export type WebSocketEventHandler = {
   onConnectionChange?: (connected: boolean) => void;
 };
 
+// Determine WebSocket URL based on environment
+// In production (Docker), use relative path which nginx proxies
+// In development, connect directly to backend
+const getWebSocketUrl = (): string => {
+  if (process.env.NODE_ENV === 'production') {
+    // In production, nginx proxies /ws to the backend
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//${window.location.host}/ws`;
+  }
+  // In development, connect directly to backend
+  return process.env.REACT_APP_WS_URL || 'ws://localhost:3001/ws';
+};
+
 class WebSocketService {
   private ws: WebSocket | null = null;
   private url: string;
@@ -89,7 +102,7 @@ class WebSocketService {
   private reconnectDelay = 1000;
   private isIntentionallyClosed = false;
 
-  constructor(url: string = 'ws://localhost:3001/ws') {
+  constructor(url: string = getWebSocketUrl()) {
     this.url = url;
   }
 

@@ -70,7 +70,10 @@ jobs:
       - name: Download frontend task definition
         run: |
           aws ecs describe-task-definition --task-definition ${{ env.ECS_TASK_DEFINITION_FRONTEND }} \
-            --query taskDefinition > frontend-task-definition.json
+            --query taskDefinition > frontend-task-definition-raw.json
+          # Remove unsupported keys that cause issues with older action versions
+          jq 'del(.enableFaultInjection, .taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            frontend-task-definition-raw.json > frontend-task-definition.json
 
       - name: Update frontend task definition with new image
         id: frontend-task-def
@@ -81,7 +84,7 @@ jobs:
           image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_FRONTEND }}:${{ github.sha }}
 
       - name: Deploy frontend to ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.frontend-task-def.outputs.task-definition }}
           service: ${{ env.ECS_SERVICE_FRONTEND }}
@@ -91,7 +94,10 @@ jobs:
       - name: Download backend task definition
         run: |
           aws ecs describe-task-definition --task-definition ${{ env.ECS_TASK_DEFINITION_BACKEND }} \
-            --query taskDefinition > backend-task-definition.json
+            --query taskDefinition > backend-task-definition-raw.json
+          # Remove unsupported keys that cause issues with older action versions
+          jq 'del(.enableFaultInjection, .taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            backend-task-definition-raw.json > backend-task-definition.json
 
       - name: Update backend task definition with new image
         id: backend-task-def
@@ -102,7 +108,7 @@ jobs:
           image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_BACKEND }}:${{ github.sha }}
 
       - name: Deploy backend to ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.backend-task-def.outputs.task-definition }}
           service: ${{ env.ECS_SERVICE_BACKEND }}
